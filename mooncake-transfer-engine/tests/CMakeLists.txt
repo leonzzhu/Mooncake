@@ -589,6 +589,17 @@ target_link_libraries(multi_transport_locality_test PUBLIC transfer_engine
 add_test(NAME multi_transport_locality_test
          COMMAND multi_transport_locality_test)
 
+# Regression test: submitTransfer()/mp_submitTransfer() must not leak the
+# BatchDesc when transport selection fails with InvalidArgument (bad/stale
+# target segment). Hardware-free (P2PHANDSHAKE metadata, no RDMA device /
+# master needed).
+add_executable(multi_transport_submit_leak_test
+               ${WORKSPACE}/multi_transport_submit_leak_test.cpp)
+target_link_libraries(multi_transport_submit_leak_test PUBLIC transfer_engine
+                                                              gtest gtest_main)
+add_test(NAME multi_transport_submit_leak_test
+         COMMAND multi_transport_submit_leak_test)
+
 add_executable(rdma_context_reprobe_test
                ${WORKSPACE}/rdma_context_reprobe_test.cpp)
 target_link_libraries(rdma_context_reprobe_test PUBLIC transfer_engine gtest

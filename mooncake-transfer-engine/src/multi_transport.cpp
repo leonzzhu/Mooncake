@@ -469,7 +469,8 @@ Status MultiTransport::mp_submitTransfer(
     batch_desc.status_cached.store(false, std::memory_order_relaxed);
     batch_desc.is_finished.store(false, std::memory_order_relaxed);
     batch_desc.finished_transfer_bytes.store(0, std::memory_order_relaxed);
-    size_t task_id = batch_desc.task_list.size();
+    const size_t original_task_count = batch_desc.task_list.size();
+    size_t task_id = original_task_count;
     batch_desc.task_list.resize(task_id + entries.size());
 
     std::unordered_map<Transport*, std::vector<Transport::TransferTask*> >
@@ -477,7 +478,16 @@ Status MultiTransport::mp_submitTransfer(
     for (auto& request : entries) {
         Transport* transport = nullptr;
         auto status = mp_selectTransport(request, transport, proto);
-        if (!status.ok()) return status;
+        if (!status.ok()) {
+            // Roll back the tasks appended above: they were never dispatched
+            // (submitTransferTask runs only after this loop), so leaving them
+            // in task_list with is_finished == false makes freeBatchID()
+            // refuse to delete the BatchDesc forever -- one leaked BatchDesc
+            // per failed submit, and the deferred cleanup worker cannot
+            // reclaim them either because they will never complete.
+            batch_desc.task_list.resize(original_task_count);
+            return status;
+        }
         assert(transport);
         auto& task = batch_desc.task_list[task_id];
         task.batch_id = batch_id;
